@@ -42,7 +42,11 @@ export async function saveMessage(params: {
   meta?: Prisma.InputJsonValue | null;
 }) {
   const metaValue =
-    params.meta === undefined ? undefined : (params.meta as Prisma.InputJsonValue | null);
+    params.meta === undefined
+      ? undefined
+      : params.meta === null
+      ? Prisma.JsonNull
+      : (params.meta as Prisma.InputJsonValue);
   await prisma.message.upsert({
     where: { id: params.id },
     update: {

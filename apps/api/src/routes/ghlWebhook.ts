@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { FastifyInstance } from "fastify";
 import { upsertConversation, saveMessage } from "../services/messages.js";
 
@@ -12,6 +13,14 @@ const firstValue = (obj: unknown, paths: string[]): unknown => {
     if (value !== undefined && value !== null && value !== "") return value;
   }
   return undefined;
+};
+
+const toJsonValue = (value: unknown): Prisma.InputJsonValue | null => {
+  try {
+    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+  } catch {
+    return null;
+  }
 };
 
 export async function registerGhlWebhookRoutes(app: FastifyInstance) {
@@ -105,7 +114,7 @@ export async function registerGhlWebhookRoutes(app: FastifyInstance) {
         channel,
         authorType: isHumanOutbound ? "human" : "customer",
         text: text ?? null,
-        meta: { eventType, payload }
+        meta: toJsonValue({ eventType: eventType ?? null, payload })
       });
     }
 
