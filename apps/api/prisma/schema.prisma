@@ -10,6 +10,8 @@ datasource db {
 model Location {
   id               String         @id
   name             String?
+  alias            String?
+  publicKey        String?        @unique
   agencyLocationId String?
   botEnabled       Boolean        @default(true)
   createdAt        DateTime       @default(now())

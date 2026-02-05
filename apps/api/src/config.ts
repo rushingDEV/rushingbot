@@ -11,6 +11,7 @@ const configSchema = z.object({
   GHL_API_KEY: z.string().min(1),
   GHL_API_VERSION: z.string().default("2021-07-28"),
   GHL_WEBHOOK_SECRET: z.string().optional(),
+  MASTER_LOCATION_ID: z.string().optional(),
   LOG_LEVEL: z.string().default("info")
 });
 
