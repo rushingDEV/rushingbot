@@ -1,0 +1,16 @@
+.DS_Store
+node_modules
+.env
+.env.*
+apps/api/.env
+apps/api/.env.*
+apps/admin/.env
+apps/admin/.env.*
+apps/api/dist
+apps/admin/.next
+apps/admin/out
+apps/admin/node_modules
+apps/api/node_modules
+packages/**/node_modules
+coverage
+screenshot/

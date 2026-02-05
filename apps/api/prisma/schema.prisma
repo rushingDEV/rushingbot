@@ -1,0 +1,48 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Location {
+  id               String         @id
+  name             String?
+  agencyLocationId String?
+  botEnabled       Boolean        @default(true)
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime       @updatedAt
+  conversations    Conversation[]
+}
+
+model Conversation {
+  id             String     @id
+  locationId     String
+  contactId      String?
+  status         String     @default("open")
+  assignedUserId String?
+  channel        String?
+  caseCode       String?    @unique
+  lastMessageAt  DateTime?
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  messages       Message[]
+
+  location Location @relation(fields: [locationId], references: [id])
+}
+
+model Message {
+  id             String   @id
+  conversationId String
+  direction      String
+  channel        String
+  authorType     String
+  text           String?
+  mediaUrl       String?
+  meta           Json?
+  createdAt      DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id])
+}

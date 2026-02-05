@@ -1,0 +1,14 @@
+{
+  "name": "rushingbot",
+  "private": true,
+  "packageManager": "npm@10.8.2",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "npm -w apps/api run dev",
+    "build": "npm -w apps/api run build && npm -w apps/admin run build",
+    "lint": "npm -w apps/api run lint && npm -w apps/admin run lint"
+  }
+}

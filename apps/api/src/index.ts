@@ -1,0 +1,31 @@
+import Fastify from "fastify";
+import cors from "@fastify/cors";
+import formbody from "@fastify/formbody";
+import helmet from "@fastify/helmet";
+import { config } from "./config.js";
+import { registerHealthRoutes } from "./routes/health.js";
+import { registerGhlWebhookRoutes } from "./routes/ghlWebhook.js";
+import { registerWhatsappRoutes } from "./routes/whatsapp.js";
+
+const app = Fastify({
+  logger: {
+    level: config.LOG_LEVEL
+  }
+});
+
+await app.register(helmet);
+await app.register(cors, { origin: true });
+await app.register(formbody);
+
+await registerHealthRoutes(app);
+await registerGhlWebhookRoutes(app);
+await registerWhatsappRoutes(app);
+
+app.get("/", async () => ({ name: "rushingbot-api" }));
+
+const port = Number(config.PORT || 8080);
+const host = "0.0.0.0";
+
+app.listen({ port, host }).then(() => {
+  app.log.info(`API listening on ${host}:${port}`);
+});
