@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "../db.js";
 
 export async function upsertConversation(params: {
@@ -38,8 +39,10 @@ export async function saveMessage(params: {
   authorType: string;
   text?: string | null;
   mediaUrl?: string | null;
-  meta?: Record<string, unknown> | null;
+  meta?: Prisma.InputJsonValue | null;
 }) {
+  const metaValue =
+    params.meta === undefined ? undefined : (params.meta as Prisma.InputJsonValue | null);
   await prisma.message.upsert({
     where: { id: params.id },
     update: {
@@ -48,7 +51,7 @@ export async function saveMessage(params: {
       authorType: params.authorType,
       text: params.text ?? null,
       mediaUrl: params.mediaUrl ?? null,
-      meta: params.meta ?? undefined
+      meta: metaValue
     },
     create: {
       id: params.id,
@@ -58,7 +61,7 @@ export async function saveMessage(params: {
       authorType: params.authorType,
       text: params.text ?? null,
       mediaUrl: params.mediaUrl ?? null,
-      meta: params.meta ?? undefined
+      meta: metaValue
     }
   });
 }
