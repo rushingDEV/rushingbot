@@ -281,10 +281,20 @@ export default function Page() {
     }
   };
 
+  const logout = async () => {
+    await fetch("/api/auth/logout", { method: "POST" });
+    window.location.href = "/login";
+  };
+
   return (
     <main dir="rtl" className="console-grid">
       <aside className="panel sidebar">
-        <h2>סוכנויות</h2>
+        <div className="panel-head">
+          <h2>סוכנויות</h2>
+          <button type="button" className="ghost" onClick={logout}>
+            התנתקות
+          </button>
+        </div>
         <form className="form" onSubmit={addAgency}>
           <input
             value={addLocationId}
