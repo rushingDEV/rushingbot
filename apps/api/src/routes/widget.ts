@@ -1,8 +1,8 @@
 import { FastifyInstance } from "fastify";
+import { config } from "../config.js";
 
 export async function registerWidgetRoutes(app: FastifyInstance) {
   app.get("/widget.js", async (request, reply) => {
-    const origin = `${request.protocol}://${request.hostname}`;
     reply.header("content-type", "application/javascript; charset=utf-8");
 
     return reply.send(`(function(){
@@ -13,7 +13,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     return;
   }
 
-  var apiBase = ${JSON.stringify(origin)};
+  var apiBase = ${JSON.stringify(config.APP_BASE_URL)};
   var storageKey = 'rushingbot_conv_' + locationKey;
   var state = {
     locationId: null,
