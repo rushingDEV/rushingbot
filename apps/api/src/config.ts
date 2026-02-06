@@ -8,7 +8,7 @@ const configSchema = z.object({
   REDIS_URL: z.string().optional(),
   OPENAI_API_KEY: z.string().min(1),
   GHL_API_BASE: z.string().url().default("https://services.leadconnectorhq.com"),
-  GHL_API_KEY: z.string().min(1),
+  GHL_API_KEY: z.string().optional(),
   GHL_API_VERSION: z.string().default("2021-07-28"),
   GHL_WEBHOOK_SECRET: z.string().optional(),
   MASTER_LOCATION_ID: z.string().optional(),
