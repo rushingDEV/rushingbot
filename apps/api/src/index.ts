@@ -8,6 +8,7 @@ import { registerWhatsappRoutes } from "./routes/whatsapp.js";
 import { registerLocationRoutes } from "./routes/locations.js";
 import { registerWidgetRoutes } from "./routes/widget.js";
 import { registerConversationRoutes } from "./routes/conversations.js";
+import { registerDashboardRoutes } from "./routes/dashboard.js";
 
 const app = Fastify({
   logger: {
@@ -24,6 +25,7 @@ await registerWhatsappRoutes(app);
 await registerLocationRoutes(app);
 await registerWidgetRoutes(app);
 await registerConversationRoutes(app);
+await registerDashboardRoutes(app);
 
 app.get("/", async () => ({ name: "rushingbot-api" }));
 

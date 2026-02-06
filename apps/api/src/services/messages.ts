@@ -149,3 +149,32 @@ export async function createDemoConversation(params: {
     }
   });
 }
+
+export async function getDashboardSummary() {
+  const [locations, totalConversations, openConversations, handoffConversations, closedConversations, totalMessages, last24hMessages] =
+    await Promise.all([
+      prisma.location.count(),
+      prisma.conversation.count(),
+      prisma.conversation.count({ where: { status: { not: "closed" } } }),
+      prisma.conversation.count({ where: { status: "handoff" } }),
+      prisma.conversation.count({ where: { status: "closed" } }),
+      prisma.message.count(),
+      prisma.message.count({
+        where: {
+          createdAt: {
+            gte: new Date(Date.now() - 24 * 60 * 60 * 1000)
+          }
+        }
+      })
+    ]);
+
+  return {
+    locations,
+    totalConversations,
+    openConversations,
+    handoffConversations,
+    closedConversations,
+    totalMessages,
+    last24hMessages
+  };
+}

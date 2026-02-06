@@ -35,6 +35,16 @@ type ChatMessage = {
   createdAt: string;
 };
 
+type Summary = {
+  locations: number;
+  totalConversations: number;
+  openConversations: number;
+  handoffConversations: number;
+  closedConversations: number;
+  totalMessages: number;
+  last24hMessages: number;
+};
+
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
 const emptySettings = {
@@ -50,6 +60,7 @@ const emptySettings = {
 };
 
 export default function Page() {
+  const [summary, setSummary] = useState<Summary | null>(null);
   const [locations, setLocations] = useState<Location[]>([]);
   const [selectedLocationId, setSelectedLocationId] = useState<string>("");
   const [addLocationId, setAddLocationId] = useState("");
@@ -97,6 +108,13 @@ export default function Page() {
     }
   };
 
+  const fetchSummary = async () => {
+    if (!apiBase) return;
+    const res = await fetch(`${apiBase}/api/dashboard/summary`);
+    const payload = await res.json();
+    setSummary(payload.summary ?? null);
+  };
+
   const fetchLocationDetails = async (locationId: string) => {
     if (!apiBase || !locationId) return;
 
@@ -142,7 +160,7 @@ export default function Page() {
   };
 
   useEffect(() => {
-    fetchLocations().catch(() => setStatus("שגיאה בטעינת סוכנויות"));
+    Promise.all([fetchLocations(), fetchSummary()]).catch(() => setStatus("שגיאה בטעינת סוכנויות"));
   }, []);
 
   useEffect(() => {
@@ -177,7 +195,7 @@ export default function Page() {
     setAddAlias("");
     setAddGhlApiKey("");
     setStatus("סוכנות נוספה");
-    await fetchLocations();
+    await Promise.all([fetchLocations(), fetchSummary()]);
     setSelectedLocationId(addLocationId || selectedLocationId);
   };
 
@@ -256,7 +274,7 @@ export default function Page() {
     }
 
     setStatus("השיחה נסגרה");
-    await fetchLocationDetails(selectedLocationId);
+    await Promise.all([fetchLocationDetails(selectedLocationId), fetchSummary()]);
     if (selectedConversationId) {
       setSelectedConversationId("");
       setConversationMessages([]);
@@ -306,7 +324,31 @@ export default function Page() {
       <section className="panel center">
         <h2>ניהול בוט לסוכנות</h2>
 
-        {!selectedLocation ? <p>בחר סוכנות מהרשימה.</p> : null}
+        <div className="kpis">
+          <div className="kpi">
+            <strong>{summary?.locations ?? 0}</strong>
+            <small>סוכנויות</small>
+          </div>
+          <div className="kpi">
+            <strong>{summary?.openConversations ?? 0}</strong>
+            <small>שיחות פתוחות</small>
+          </div>
+          <div className="kpi">
+            <strong>{summary?.handoffConversations ?? 0}</strong>
+            <small>שיחות אצל נציג</small>
+          </div>
+          <div className="kpi">
+            <strong>{summary?.last24hMessages ?? 0}</strong>
+            <small>הודעות ב-24 שעות</small>
+          </div>
+        </div>
+
+        {!selectedLocation ? (
+          <div className="empty-state">
+            <strong>אין סוכנות פעילה כרגע</strong>
+            <p>כדי להתחיל: הוסף Location ID בצד ימין ואז בחר את הסוכנות מהרשימה.</p>
+          </div>
+        ) : null}
 
         {selectedLocation ? (
           <>

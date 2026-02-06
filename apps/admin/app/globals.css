@@ -248,6 +248,39 @@ code {
   font-size: 13px;
 }
 
+.kpis {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.kpi {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #fff;
+  padding: 10px;
+  display: grid;
+  gap: 4px;
+}
+
+.kpi strong {
+  font-size: 22px;
+  color: var(--brand);
+}
+
+.kpi small {
+  color: var(--muted);
+}
+
+.empty-state {
+  border: 1px dashed #bfd0ff;
+  background: #f7f9ff;
+  border-radius: 12px;
+  padding: 14px;
+  display: grid;
+  gap: 6px;
+}
+
 @media (max-width: 1300px) {
   .console-grid {
     grid-template-columns: 1fr;
@@ -255,6 +288,10 @@ code {
 
   .grid-two {
     grid-template-columns: 1fr;
+  }
+
+  .kpis {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
   .agent-form {
