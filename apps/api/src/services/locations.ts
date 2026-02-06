@@ -9,6 +9,11 @@ export function generatePublicKey(): string {
 export async function upsertLocation(params: {
   locationId: string;
   alias?: string | null;
+  ghlApiKey?: string | null;
+  botName?: string | null;
+  systemPrompt?: string | null;
+  supportEmail?: string | null;
+  supportWhatsapp?: string | null;
 }) {
   const existing = await prisma.location.findUnique({
     where: { id: params.locationId }
@@ -20,11 +25,21 @@ export async function upsertLocation(params: {
     where: { id: params.locationId },
     update: {
       alias: params.alias ?? undefined,
+      ghlApiKey: params.ghlApiKey ?? undefined,
+      botName: params.botName ?? undefined,
+      systemPrompt: params.systemPrompt ?? undefined,
+      supportEmail: params.supportEmail ?? undefined,
+      supportWhatsapp: params.supportWhatsapp ?? undefined,
       publicKey
     },
     create: {
       id: params.locationId,
       alias: params.alias ?? null,
+      ghlApiKey: params.ghlApiKey ?? null,
+      botName: params.botName ?? "Rushingbot",
+      systemPrompt: params.systemPrompt ?? null,
+      supportEmail: params.supportEmail ?? null,
+      supportWhatsapp: params.supportWhatsapp ?? null,
       publicKey,
       agencyLocationId: config.MASTER_LOCATION_ID ?? null
     }
@@ -33,8 +48,41 @@ export async function upsertLocation(params: {
   return location;
 }
 
+export async function updateLocationSettings(
+  locationId: string,
+  payload: {
+    alias?: string;
+    botEnabled?: boolean;
+    botName?: string;
+    systemPrompt?: string;
+    handoffMode?: string;
+    supportEmail?: string;
+    supportWhatsapp?: string;
+    themeColor?: string;
+    demoEnabled?: boolean;
+    ghlApiKey?: string;
+  }
+) {
+  return prisma.location.update({
+    where: { id: locationId },
+    data: payload
+  });
+}
+
 export async function listLocations() {
   return prisma.location.findMany({
     orderBy: { createdAt: "desc" }
+  });
+}
+
+export async function getLocationById(locationId: string) {
+  return prisma.location.findUnique({
+    where: { id: locationId }
+  });
+}
+
+export async function getLocationByPublicKey(publicKey: string) {
+  return prisma.location.findUnique({
+    where: { publicKey }
   });
 }

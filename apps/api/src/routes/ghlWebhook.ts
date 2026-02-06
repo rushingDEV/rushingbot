@@ -1,4 +1,3 @@
-import { Prisma } from "@prisma/client";
 import { FastifyInstance } from "fastify";
 import { upsertConversation, saveMessage } from "../services/messages.js";
 
@@ -15,9 +14,9 @@ const firstValue = (obj: unknown, paths: string[]): unknown => {
   return undefined;
 };
 
-const toJsonValue = (value: unknown): Prisma.InputJsonValue | null => {
+const toJsonValue = (value: unknown): unknown => {
   try {
-    return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+    return JSON.parse(JSON.stringify(value));
   } catch {
     return null;
   }
@@ -63,6 +62,11 @@ export async function registerGhlWebhookRoutes(app: FastifyInstance) {
       "contact.id",
       "payload.contact.id"
     ]) as string | undefined;
+    const contactName = firstValue(payload, [
+      "contact.name",
+      "data.contact.name",
+      "payload.contact.name"
+    ]) as string | undefined;
 
     const direction = (firstValue(payload, [
       "direction",
@@ -92,12 +96,20 @@ export async function registerGhlWebhookRoutes(app: FastifyInstance) {
       "data.message.userId"
     ]) as string | undefined;
 
+    const senderName = firstValue(payload, [
+      "contact.name",
+      "data.contact.name",
+      "message.senderName",
+      "data.message.senderName"
+    ]) as string | undefined;
+
     const isHumanOutbound = Boolean(userId && direction.toLowerCase() === "outbound");
 
     if (conversationId && locationId) {
       await upsertConversation({
         id: conversationId,
         locationId,
+        title: contactName ?? null,
         contactId,
         status: isHumanOutbound ? "handoff" : "open",
         assignedUserId: userId ?? null,
@@ -113,6 +125,7 @@ export async function registerGhlWebhookRoutes(app: FastifyInstance) {
         direction,
         channel,
         authorType: isHumanOutbound ? "human" : "customer",
+        senderName: isHumanOutbound ? userId ?? "Agent" : senderName ?? "Customer",
         text: text ?? null,
         meta: toJsonValue({ eventType: eventType ?? null, payload })
       });

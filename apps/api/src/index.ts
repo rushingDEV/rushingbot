@@ -7,6 +7,7 @@ import { registerGhlWebhookRoutes } from "./routes/ghlWebhook.js";
 import { registerWhatsappRoutes } from "./routes/whatsapp.js";
 import { registerLocationRoutes } from "./routes/locations.js";
 import { registerWidgetRoutes } from "./routes/widget.js";
+import { registerConversationRoutes } from "./routes/conversations.js";
 
 const app = Fastify({
   logger: {
@@ -22,6 +23,7 @@ await registerGhlWebhookRoutes(app);
 await registerWhatsappRoutes(app);
 await registerLocationRoutes(app);
 await registerWidgetRoutes(app);
+await registerConversationRoutes(app);
 
 app.get("/", async () => ({ name: "rushingbot-api" }));
 

@@ -12,6 +12,14 @@ model Location {
   name             String?
   alias            String?
   publicKey        String?        @unique
+  ghlApiKey        String?
+  botName          String         @default("Rushingbot")
+  systemPrompt     String?
+  handoffMode      String         @default("on_human_reply")
+  supportEmail     String?
+  supportWhatsapp  String?
+  themeColor       String         @default("#2f5bff")
+  demoEnabled      Boolean        @default(true)
   agencyLocationId String?
   botEnabled       Boolean        @default(true)
   createdAt        DateTime       @default(now())
@@ -22,10 +30,13 @@ model Location {
 model Conversation {
   id             String     @id
   locationId     String
+  title          String?
   contactId      String?
   status         String     @default("open")
   assignedUserId String?
   channel        String?
+  source         String     @default("ghl")
+  isDemo         Boolean    @default(false)
   caseCode       String?    @unique
   lastMessageAt  DateTime?
   createdAt      DateTime   @default(now())
@@ -41,6 +52,7 @@ model Message {
   direction      String
   channel        String
   authorType     String
+  senderName     String?
   text           String?
   mediaUrl       String?
   meta           Json?

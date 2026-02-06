@@ -6,7 +6,7 @@ const configSchema = z.object({
   APP_BASE_URL: z.string().url().default("http://localhost:8080"),
   DATABASE_URL: z.string().min(1),
   REDIS_URL: z.string().optional(),
-  OPENAI_API_KEY: z.string().min(1),
+  OPENAI_API_KEY: z.string().optional(),
   GHL_API_BASE: z.string().url().default("https://services.leadconnectorhq.com"),
   GHL_API_KEY: z.string().optional(),
   GHL_API_VERSION: z.string().default("2021-07-28"),
