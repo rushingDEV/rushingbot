@@ -75,15 +75,17 @@ button {
 }
 
 .product-shell {
+  direction: ltr;
   min-height: 100vh;
   display: grid;
-  grid-template-columns: 320px 1fr;
+  grid-template-columns: 286px 1fr;
   gap: 16px;
   padding: 16px;
 }
 
 .left-rail,
 .main-area {
+  direction: rtl;
   border: 1px solid var(--line);
   border-radius: 20px;
   background: var(--surface);

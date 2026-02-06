@@ -6,6 +6,7 @@ import { generateBotReply } from "../services/bot.js";
 import { getGhlStatus, getOpenAiStatus } from "../services/integrations.js";
 import {
   createDemoConversation,
+  getConversation,
   listConversationMessages,
   listConversationsByLocation,
   saveMessage
@@ -171,12 +172,16 @@ export async function registerLocationRoutes(app: FastifyInstance) {
       return reply.code(403).send({ message: "Demo is disabled for this location" });
     }
 
-    const conversation = body.conversationId
-      ? { id: body.conversationId }
-      : await createDemoConversation({
-          locationId,
-          title: `Demo ${location.alias ?? location.id}`
-        });
+    const existingConversation = body.conversationId
+      ? await getConversation(body.conversationId)
+      : null;
+
+    const conversation =
+      existingConversation ??
+      (await createDemoConversation({
+        locationId,
+        title: `Demo ${location.alias ?? location.id}`
+      }));
 
     await saveMessage({
       id: crypto.randomUUID(),
@@ -189,28 +194,33 @@ export async function registerLocationRoutes(app: FastifyInstance) {
       meta: { source: "playground" }
     });
 
-    const history = await listConversationMessages(conversation.id);
-    let botReply = "מצטער, זמנית אין מענה. נציג יחזור בהקדם.";
-    try {
-      botReply = await generateBotReply({
-        location,
-        history,
-        userMessage: body.text
-      });
-    } catch (error) {
-      request.log.error({ error }, "Failed generating bot reply");
-    }
+    const shouldPauseBot =
+      conversation.status === "handoff" && location.handoffMode === "on_human_reply";
 
-    await saveMessage({
-      id: crypto.randomUUID(),
-      conversationId: conversation.id,
-      direction: "outbound",
-      channel: "web",
-      authorType: "bot",
-      senderName: location.botName,
-      text: botReply,
-      meta: { source: "playground" }
-    });
+    if (!shouldPauseBot) {
+      const history = await listConversationMessages(conversation.id);
+      let botReply = "מצטער, זמנית אין מענה. נציג יחזור בהקדם.";
+      try {
+        botReply = await generateBotReply({
+          location,
+          history,
+          userMessage: body.text
+        });
+      } catch (error) {
+        request.log.error({ error }, "Failed generating bot reply");
+      }
+
+      await saveMessage({
+        id: crypto.randomUUID(),
+        conversationId: conversation.id,
+        direction: "outbound",
+        channel: "web",
+        authorType: "bot",
+        senderName: location.botName,
+        text: botReply,
+        meta: { source: "playground" }
+      });
+    }
 
     const messages = await listConversationMessages(conversation.id);
 

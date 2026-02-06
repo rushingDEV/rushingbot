@@ -629,8 +629,8 @@ export default function Page() {
   };
 
   return (
-    <main dir="rtl" className="product-shell">
-      <aside className="left-rail">
+    <main className="product-shell">
+      <aside dir="rtl" className="left-rail">
         <div className="brand-box">
           <div>
             <h1>Rushingbot OS</h1>
@@ -681,7 +681,7 @@ export default function Page() {
         </div>
       </aside>
 
-      <section className="main-area">
+      <section dir="rtl" className="main-area">
         <header className="top-head">
           <div>
             <h2>{selectedLocation?.alias || "בחר סוכנות"}</h2>
