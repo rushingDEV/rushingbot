@@ -59,7 +59,32 @@ export async function generateBotReply(params: {
 
   const payload = (await response.json()) as {
     output_text?: string;
+    output?: Array<{
+      content?: Array<{
+        type?: string;
+        text?: string | { value?: string };
+      }>;
+    }>;
   };
 
-  return payload.output_text?.trim() || "מצטער, לא הצלחתי לענות כרגע. נסה שוב בעוד רגע.";
+  const directText = payload.output_text?.trim();
+  if (directText) {
+    return directText;
+  }
+
+  const contentText = (payload.output || [])
+    .flatMap((item) => item.content || [])
+    .map((part) => {
+      if (typeof part.text === "string") return part.text;
+      if (part.text && typeof part.text.value === "string") return part.text.value;
+      return "";
+    })
+    .join("\n")
+    .trim();
+
+  if (contentText) {
+    return contentText;
+  }
+
+  return "מצטער, לא הצלחתי לענות כרגע. נסה שוב בעוד רגע.";
 }
