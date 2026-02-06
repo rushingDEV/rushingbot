@@ -1,7 +1,6 @@
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import formbody from "@fastify/formbody";
-import helmet from "@fastify/helmet";
 import { config } from "./config.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { registerGhlWebhookRoutes } from "./routes/ghlWebhook.js";
@@ -15,7 +14,6 @@ const app = Fastify({
   }
 });
 
-await app.register(helmet);
 await app.register(cors, { origin: true });
 await app.register(formbody);
 
