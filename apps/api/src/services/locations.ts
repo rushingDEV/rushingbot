@@ -12,6 +12,8 @@ export async function upsertLocation(params: {
   ghlApiKey?: string | null;
   botName?: string | null;
   systemPrompt?: string | null;
+  openaiModel?: string | null;
+  openaiTemperature?: number | null;
   supportEmail?: string | null;
   supportWhatsapp?: string | null;
 }) {
@@ -28,6 +30,8 @@ export async function upsertLocation(params: {
       ghlApiKey: params.ghlApiKey ?? undefined,
       botName: params.botName ?? undefined,
       systemPrompt: params.systemPrompt ?? undefined,
+      openaiModel: params.openaiModel ?? undefined,
+      openaiTemperature: params.openaiTemperature ?? undefined,
       supportEmail: params.supportEmail ?? undefined,
       supportWhatsapp: params.supportWhatsapp ?? undefined,
       publicKey
@@ -38,6 +42,8 @@ export async function upsertLocation(params: {
       ghlApiKey: params.ghlApiKey ?? null,
       botName: params.botName ?? "Rushingbot",
       systemPrompt: params.systemPrompt ?? null,
+      openaiModel: params.openaiModel ?? "gpt-4.1-mini",
+      openaiTemperature: params.openaiTemperature ?? 0.2,
       supportEmail: params.supportEmail ?? null,
       supportWhatsapp: params.supportWhatsapp ?? null,
       publicKey,
@@ -55,6 +61,8 @@ export async function updateLocationSettings(
     botEnabled?: boolean;
     botName?: string;
     systemPrompt?: string;
+    openaiModel?: string;
+    openaiTemperature?: number;
     handoffMode?: string;
     supportEmail?: string;
     supportWhatsapp?: string;

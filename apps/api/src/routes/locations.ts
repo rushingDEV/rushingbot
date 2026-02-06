@@ -3,6 +3,7 @@ import { FastifyInstance } from "fastify";
 import { z } from "zod";
 import { config } from "../config.js";
 import { generateBotReply } from "../services/bot.js";
+import { getGhlStatus, getOpenAiStatus } from "../services/integrations.js";
 import {
   createDemoConversation,
   listConversationMessages,
@@ -23,6 +24,8 @@ const createSchema = z.object({
   ghlApiKey: z.string().min(1).optional(),
   botName: z.string().min(1).optional(),
   systemPrompt: z.string().min(1).optional(),
+  openaiModel: z.string().min(1).optional(),
+  openaiTemperature: z.number().min(0).max(1).optional(),
   supportEmail: z.string().min(1).optional(),
   supportWhatsapp: z.string().min(1).optional()
 });
@@ -32,6 +35,8 @@ const updateSchema = z.object({
   botEnabled: z.boolean().optional(),
   botName: z.string().min(1).optional(),
   systemPrompt: z.string().optional(),
+  openaiModel: z.string().min(1).optional(),
+  openaiTemperature: z.number().min(0).max(1).optional(),
   handoffMode: z.string().min(1).optional(),
   supportEmail: z.string().optional(),
   supportWhatsapp: z.string().optional(),
@@ -45,17 +50,34 @@ const demoMessageSchema = z.object({
   text: z.string().min(1)
 });
 
+function maskApiKey(key?: string | null) {
+  if (!key) return null;
+  if (key.length <= 8) return "********";
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+}
+
+function withLocationView(location: {
+  [key: string]: unknown;
+  publicKey?: string | null;
+  ghlApiKey?: string | null;
+}) {
+  return {
+    ...location,
+    ghlApiKey: maskApiKey(location.ghlApiKey),
+    ghlApiConfigured: Boolean(location.ghlApiKey),
+    embedCode: location.publicKey
+      ? `<script src=\"${config.APP_BASE_URL}/widget.js\" data-location-key=\"${location.publicKey}\"></script>`
+      : null
+  };
+}
+
 export async function registerLocationRoutes(app: FastifyInstance) {
   app.get("/api/locations", async () => {
     const locations = await listLocations();
     return {
-      locations: locations.map((location: any) => ({
-        ...location,
-        ghlApiKey: location.ghlApiKey ? "***" : null,
-        embedCode: location.publicKey
-          ? `<script src=\"${config.APP_BASE_URL}/widget.js\" data-location-key=\"${location.publicKey}\"></script>`
-          : null
-      }))
+      locations: locations.map((location: { [key: string]: unknown; publicKey?: string | null; ghlApiKey?: string | null }) =>
+        withLocationView(location)
+      )
     };
   });
 
@@ -67,18 +89,14 @@ export async function registerLocationRoutes(app: FastifyInstance) {
       ghlApiKey: body.ghlApiKey,
       botName: body.botName,
       systemPrompt: body.systemPrompt,
+      openaiModel: body.openaiModel,
+      openaiTemperature: body.openaiTemperature,
       supportEmail: body.supportEmail,
       supportWhatsapp: body.supportWhatsapp
     });
 
     return reply.code(201).send({
-      location: {
-        ...location,
-        ghlApiKey: location.ghlApiKey ? "***" : null,
-        embedCode: location.publicKey
-          ? `<script src=\"${config.APP_BASE_URL}/widget.js\" data-location-key=\"${location.publicKey}\"></script>`
-          : null
-      }
+      location: withLocationView(location)
     });
   });
 
@@ -92,16 +110,10 @@ export async function registerLocationRoutes(app: FastifyInstance) {
     const conversations = await listConversationsByLocation(locationId, 10);
 
     return {
-      location: {
-        ...location,
-        ghlApiKey: location.ghlApiKey ? "***" : null,
-        embedCode: location.publicKey
-          ? `<script src=\"${config.APP_BASE_URL}/widget.js\" data-location-key=\"${location.publicKey}\"></script>`
-          : null
-      },
+      location: withLocationView(location),
       stats: {
-        openConversations: conversations.filter((item: any) => item.status !== "closed").length,
-        handoffConversations: conversations.filter((item: any) => item.status === "handoff").length
+        openConversations: conversations.filter((item: { status: string }) => item.status !== "closed").length,
+        handoffConversations: conversations.filter((item: { status: string }) => item.status === "handoff").length
       }
     };
   });
@@ -112,13 +124,7 @@ export async function registerLocationRoutes(app: FastifyInstance) {
 
     const location = await updateLocationSettings(locationId, body);
     return {
-      location: {
-        ...location,
-        ghlApiKey: location.ghlApiKey ? "***" : null,
-        embedCode: location.publicKey
-          ? `<script src=\"${config.APP_BASE_URL}/widget.js\" data-location-key=\"${location.publicKey}\"></script>`
-          : null
-      }
+      location: withLocationView(location)
     };
   });
 
@@ -128,6 +134,31 @@ export async function registerLocationRoutes(app: FastifyInstance) {
     return { conversations };
   });
 
+  app.get("/api/locations/:locationId/integrations", async (request, reply) => {
+    const { locationId } = request.params as { locationId: string };
+    const location = await getLocationById(locationId);
+    if (!location) {
+      return reply.code(404).send({ message: "Location not found" });
+    }
+
+    const [openai, ghl] = await Promise.all([
+      getOpenAiStatus(),
+      getGhlStatus(locationId, location.ghlApiKey)
+    ]);
+
+    return {
+      openai,
+      ghl,
+      selectedModel: location.openaiModel,
+      temperature: location.openaiTemperature
+    };
+  });
+
+  app.get("/api/integrations/openai", async () => {
+    const openai = await getOpenAiStatus();
+    return { openai };
+  });
+
   app.post("/api/locations/:locationId/demo/message", async (request, reply) => {
     const { locationId } = request.params as { locationId: string };
     const body = demoMessageSchema.parse(request.body);
@@ -135,6 +166,9 @@ export async function registerLocationRoutes(app: FastifyInstance) {
     const location = await getLocationById(locationId);
     if (!location) {
       return reply.code(404).send({ message: "Location not found" });
+    }
+    if (!location.botEnabled || !location.demoEnabled) {
+      return reply.code(403).send({ message: "Demo is disabled for this location" });
     }
 
     const conversation = body.conversationId

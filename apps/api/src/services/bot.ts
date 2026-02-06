@@ -10,6 +10,8 @@ type HistoryMessage = {
 
 type BotLocation = {
   systemPrompt: string | null;
+  openaiModel?: string | null;
+  openaiTemperature?: number | null;
 };
 
 export async function generateBotReply(params: {
@@ -22,6 +24,8 @@ export async function generateBotReply(params: {
   }
 
   const systemPrompt = params.location.systemPrompt?.trim() || DEFAULT_PROMPT;
+  const selectedModel = params.location.openaiModel || "gpt-4.1-mini";
+  const temperature = typeof params.location.openaiTemperature === "number" ? params.location.openaiTemperature : 0.2;
 
   const messages = [
     { role: "system", content: systemPrompt },
@@ -42,9 +46,9 @@ export async function generateBotReply(params: {
       authorization: `Bearer ${config.OPENAI_API_KEY}`
     },
     body: JSON.stringify({
-      model: "gpt-4.1-mini",
+      model: selectedModel,
       input: messages,
-      temperature: 0.2
+      temperature
     })
   });
 
