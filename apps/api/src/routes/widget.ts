@@ -108,7 +108,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
         '<nav class="rbx-nav">' +
           '<button data-tab="home">🏠<span>בית</span></button>' +
           '<button data-tab="tasks">✅<span>משימות</span></button>' +
-          '<button data-tab="messages">💬<span>Messages</span><span class="rbx-nav-badge" id="rbx-nav-badge">0</span></button>' +
+          '<button data-tab="messages">💬<span>הודעות</span><span class="rbx-nav-badge" id="rbx-nav-badge">0</span></button>' +
           '<button data-tab="help">❔<span>עזרה</span></button>' +
         '</nav>' +
       '</section>' +
@@ -176,6 +176,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
   function renderHome() {
     main.innerHTML = '' +
       '<section class="rbx-card" data-action="open-chat"><div><strong>כתבו לנו</strong><small>צוות השירות זמין בצ׳אט</small></div><span class="rbx-icon">➤</span></section>' +
+      '<section class="rbx-card" data-tab-jump="messages"><div><strong>הודעות אחרונות</strong><small>מעקב אחרי כל השיחות</small></div><span class="rbx-icon">💬</span></section>' +
       '<section class="rbx-card" data-tab-jump="tasks"><div><strong>צ׳קליסט התחברות</strong><small>השלמת הקמה ב-10 דקות</small></div><span class="rbx-icon">✓</span></section>' +
       '<section class="rbx-card" data-tab-jump="help"><div><strong>חיפוש עזרה</strong><small>מאמרים ותשובות מהירות</small></div><span class="rbx-icon">🔎</span></section>' +
       '<section class="rbx-section"><h4>אפשר לעזור גם בנושא:</h4><div class="rbx-chip-wrap">' +
@@ -199,18 +200,19 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     var recent = state.messages.slice(-8).reverse();
     if (recent.length === 0) {
       main.innerHTML = '' +
-        '<section class="rbx-section"><h4>Messages</h4><div class="rbx-empty">אין עדיין הודעות. לחץ "כתבו לנו" כדי להתחיל.</div></section>' +
-        '<section class="rbx-card" data-action="open-chat"><div><strong>Send us a message</strong><small>פתיחת שיחה חדשה</small></div><span class="rbx-icon">➤</span></section>';
+        '<section class="rbx-section"><h4>הודעות</h4><div class="rbx-empty">אין עדיין הודעות. לחץ "כתבו לנו" כדי להתחיל.</div></section>' +
+        '<section class="rbx-card" data-action="open-chat"><div><strong>שלחו לנו הודעה</strong><small>פתיחת שיחה חדשה</small></div><span class="rbx-icon">➤</span></section>';
       return;
     }
 
-    var items = recent.map(function(item){
+    var items = recent.map(function(item, index){
       var who = item.authorType === 'bot' ? state.botName : item.authorType === 'human' ? 'נציג' : (item.senderName || 'לקוח');
-      return '<div class="rbx-msg-item"><strong>' + esc(who) + '</strong><small>' + esc(item.text || '') + '</small></div>';
+      var minute = index + 1;
+      return '<div class="rbx-msg-item"><div style="display:flex;justify-content:space-between;gap:8px;align-items:center"><strong>' + esc(who) + '</strong><small>' + minute + 'ד</small></div><small>' + esc(item.text || '') + '</small></div>';
     }).join('');
 
     main.innerHTML = '' +
-      '<section class="rbx-section"><h4>Messages</h4>' + items + '</section>' +
+      '<section class="rbx-section"><h4>הודעות</h4>' + items + '</section>' +
       '<section class="rbx-card" data-action="open-chat"><div><strong>המשך שיחה</strong><small>מעבר לצ׳אט הפעיל</small></div><span class="rbx-icon">➤</span></section>';
   }
 
@@ -381,9 +383,6 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     if (state.open) {
       panel.classList.add('open');
       setUnread(0);
-      if (state.tab === 'messages') {
-        state.tab = 'chat';
-      }
       render();
     } else {
       panel.classList.remove('open');
@@ -430,9 +429,6 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     var navTab = target.closest('[data-tab]');
     if (navTab) {
       state.tab = navTab.getAttribute('data-tab') || 'home';
-      if (state.tab === 'messages') {
-        state.tab = 'chat';
-      }
       setUnread(0);
       render();
     }

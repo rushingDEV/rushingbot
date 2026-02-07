@@ -132,6 +132,20 @@ export async function closeConversation(conversationId: string) {
   });
 }
 
+export async function reopenConversation(conversationId: string) {
+  return prisma.conversation.update({
+    where: { id: conversationId },
+    data: { status: "open" }
+  });
+}
+
+export async function handoffConversation(conversationId: string) {
+  return prisma.conversation.update({
+    where: { id: conversationId },
+    data: { status: "handoff" }
+  });
+}
+
 export async function createDemoConversation(params: {
   locationId: string;
   title: string;

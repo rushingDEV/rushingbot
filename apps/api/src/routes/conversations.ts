@@ -4,7 +4,9 @@ import {
   closeConversation,
   createAgentMessage,
   getConversation,
-  listConversationMessages
+  handoffConversation,
+  listConversationMessages,
+  reopenConversation
 } from "../services/messages.js";
 
 const sendMessageSchema = z.object({
@@ -53,6 +55,30 @@ export async function registerConversationRoutes(app: FastifyInstance) {
     }
 
     await closeConversation(conversationId);
+    return { ok: true };
+  });
+
+  app.post("/api/conversations/:conversationId/reopen", async (request, reply) => {
+    const { conversationId } = request.params as { conversationId: string };
+
+    const conversation = await getConversation(conversationId);
+    if (!conversation) {
+      return reply.code(404).send({ message: "Conversation not found" });
+    }
+
+    await reopenConversation(conversationId);
+    return { ok: true };
+  });
+
+  app.post("/api/conversations/:conversationId/handoff", async (request, reply) => {
+    const { conversationId } = request.params as { conversationId: string };
+
+    const conversation = await getConversation(conversationId);
+    if (!conversation) {
+      return reply.code(404).send({ message: "Conversation not found" });
+    }
+
+    await handoffConversation(conversationId);
     return { ok: true };
   });
 }

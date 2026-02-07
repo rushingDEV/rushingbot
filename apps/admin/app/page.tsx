@@ -78,12 +78,12 @@ type FilterId = "all" | "open" | "handoff" | "closed";
 
 const apiBase = process.env.NEXT_PUBLIC_API_BASE ?? "";
 
-const modules: Array<{ id: ModuleId; label: string; hint: string }> = [
-  { id: "dashboard", label: "Dashboard", hint: "סקירה ומדדים" },
-  { id: "wizard", label: "Wizard", hint: "הקמת בוט מהירה" },
-  { id: "inbox", label: "Inbox", hint: "ניהול שיחות" },
-  { id: "playground", label: "Playground", hint: "התנסות חיה" },
-  { id: "widget", label: "Widget Studio", hint: "עיצוב והטמעה" }
+const modules: Array<{ id: ModuleId; label: string; hint: string; icon: string }> = [
+  { id: "dashboard", label: "בית", hint: "סקירת ביצועים", icon: "🏠" },
+  { id: "wizard", label: "Wizard", hint: "הקמה מהירה", icon: "🧭" },
+  { id: "inbox", label: "Inbox", hint: "ניהול שיחות", icon: "💬" },
+  { id: "playground", label: "Playground", hint: "בדיקת בוט", icon: "🧪" },
+  { id: "widget", label: "Widget", hint: "עיצוב והטמעה", icon: "📱" }
 ];
 
 const filters: Array<{ id: FilterId; label: string }> = [
@@ -93,13 +93,7 @@ const filters: Array<{ id: FilterId; label: string }> = [
   { id: "closed", label: "סגורות" }
 ];
 
-const wizardSteps = [
-  "מיתוג וזהות",
-  "מוח ה-AI",
-  "ערוצים והעברה",
-  "הטמעה ופרסום",
-  "בדיקה וסיום"
-];
+const wizardSteps = ["מיתוג וזהות", "מוח OpenAI", "ערוצים ו-Handoff", "הטמעה וחיבורים", "סיכום ופרסום"];
 
 const defaultSettings = {
   alias: "",
@@ -124,6 +118,12 @@ function formatDate(value: string) {
   }
 }
 
+function statusLabel(status: string) {
+  if (status === "handoff") return "אצל נציג";
+  if (status === "closed") return "סגורה";
+  return "פתוחה";
+}
+
 function getStatusTone(status: string) {
   if (status === "closed") return "tone-closed";
   if (status === "handoff") return "tone-handoff";
@@ -134,6 +134,7 @@ export default function Page() {
   const [moduleId, setModuleId] = useState<ModuleId>("dashboard");
   const [wizardStep, setWizardStep] = useState(1);
   const [filter, setFilter] = useState<FilterId>("all");
+  const [search, setSearch] = useState("");
   const [loading, setLoading] = useState(false);
   const [notice, setNotice] = useState<Notice | null>(null);
 
@@ -172,9 +173,15 @@ export default function Page() {
   );
 
   const filteredConversations = useMemo(() => {
-    if (filter === "all") return conversations;
-    return conversations.filter((item) => item.status === filter);
-  }, [conversations, filter]);
+    const byStatus = filter === "all" ? conversations : conversations.filter((item) => item.status === filter);
+    if (!search.trim()) return byStatus;
+    const query = search.trim().toLowerCase();
+    return byStatus.filter((item) => {
+      const title = (item.title || item.id).toLowerCase();
+      const snippet = (item.messages?.[0]?.text || "").toLowerCase();
+      return title.includes(query) || snippet.includes(query);
+    });
+  }, [conversations, filter, search]);
 
   const models = useMemo(() => {
     const fromApi = integrations?.openai.models || ["gpt-4.1-mini", "gpt-4.1", "gpt-4o-mini", "gpt-4o"];
@@ -184,7 +191,7 @@ export default function Page() {
 
   const widgetPreviewDoc = useMemo(() => {
     if (!selectedLocation?.publicKey || !apiBase) return "";
-    return `<!doctype html><html><head><meta charset=\"utf-8\"/><meta name=\"viewport\" content=\"width=device-width,initial-scale=1\"/><style>body{margin:0;height:100vh;background:#f0f4ff}</style></head><body><script src=\"${apiBase}/widget.js\" data-location-key=\"${selectedLocation.publicKey}\"></script></body></html>`;
+    return `<!doctype html><html><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/><style>body{margin:0;height:100vh;background:linear-gradient(180deg,#f4f7ff,#eef2ff)}</style></head><body><script src="${apiBase}/widget.js" data-location-key="${selectedLocation.publicKey}"></script></body></html>`;
   }, [selectedLocation, apiBase]);
 
   const setInfo = (kind: Notice["kind"], text: string) => setNotice({ kind, text });
@@ -371,7 +378,7 @@ export default function Page() {
     }
 
     setSettings((prev) => ({ ...prev, ghlApiKey: "" }));
-    setInfo("ok", "הגדרות נשמרו");
+    setInfo("ok", "ההגדרות נשמרו");
     await Promise.all([loadSummary(), loadSelectedLocation(selectedLocationId), loadLocations()]);
   };
 
@@ -422,21 +429,22 @@ export default function Page() {
     setConversationMessages(payload.messages || []);
     setAgentReply("");
     await Promise.all([loadSummary(), loadSelectedLocation(selectedLocationId)]);
-    setInfo("ok", "תגובת נציג נשלחה");
+    setInfo("ok", "הנציג הגיב בהצלחה");
   };
 
-  const closeConversation = async () => {
+  const setConversationStatus = async (mode: "close" | "reopen" | "handoff") => {
     if (!apiBase || !selectedConversationId) return;
-    const res = await fetch(`${apiBase}/api/conversations/${selectedConversationId}/close`, { method: "POST" });
+    const path = mode === "close" ? "close" : mode === "reopen" ? "reopen" : "handoff";
+    const res = await fetch(`${apiBase}/api/conversations/${selectedConversationId}/${path}`, { method: "POST" });
     if (!res.ok) {
-      setInfo("error", "סגירת שיחה נכשלה");
+      setInfo("error", "שינוי סטטוס נכשל");
       return;
     }
 
-    setSelectedConversationId("");
-    setConversationMessages([]);
-    await Promise.all([loadSummary(), loadSelectedLocation(selectedLocationId)]);
-    setInfo("ok", "השיחה נסגרה");
+    await Promise.all([loadSummary(), loadSelectedLocation(selectedLocationId), loadConversation(selectedConversationId)]);
+    if (mode === "close") setInfo("ok", "השיחה נסגרה");
+    if (mode === "reopen") setInfo("ok", "השיחה חזרה לבוט");
+    if (mode === "handoff") setInfo("ok", "הנציג תפס את השיחה");
   };
 
   const copyToClipboard = async (value: string, label: string) => {
@@ -454,35 +462,33 @@ export default function Page() {
     window.location.href = "/login";
   };
 
-  const stepContent = () => {
-    if (!selectedLocation) {
-      return <div className="empty-block">בחר סוכנות כדי להתחיל Wizard.</div>;
-    }
+  const wizardSummary = [
+    { label: "סוכנות", value: settings.alias || selectedLocation?.id || "-" },
+    { label: "שם בוט", value: settings.botName || "-" },
+    { label: "מודל", value: settings.openaiModel || "-" },
+    { label: "OpenAI", value: integrations?.openai.connected ? "מחובר" : "לא מחובר" },
+    { label: "GHL", value: integrations?.ghl.connected ? "מחובר" : "לא מחובר" }
+  ];
 
+  const renderWizardBody = () => {
     if (wizardStep === 1) {
       return (
-        <div className="wizard-form-grid">
+        <div className="form-grid two-col">
           <label>
             <span>כינוי סוכנות</span>
-            <input
-              value={settings.alias}
-              onChange={(event) => setSettings((prev) => ({ ...prev, alias: event.target.value }))}
-              placeholder="למשל: Agency Tel Aviv"
-            />
+            <input value={settings.alias} onChange={(event) => setSettings((prev) => ({ ...prev, alias: event.target.value }))} />
           </label>
           <label>
-            <span>שם בוט</span>
-            <input
-              value={settings.botName}
-              onChange={(event) => setSettings((prev) => ({ ...prev, botName: event.target.value }))}
-            />
+            <span>שם הבוט</span>
+            <input value={settings.botName} onChange={(event) => setSettings((prev) => ({ ...prev, botName: event.target.value }))} />
           </label>
           <label>
             <span>צבע מותג</span>
-            <input
-              value={settings.themeColor}
-              onChange={(event) => setSettings((prev) => ({ ...prev, themeColor: event.target.value }))}
-            />
+            <input value={settings.themeColor} onChange={(event) => setSettings((prev) => ({ ...prev, themeColor: event.target.value }))} />
+          </label>
+          <label>
+            <span>ערוץ WhatsApp לתמיכה</span>
+            <input value={settings.supportWhatsapp} onChange={(event) => setSettings((prev) => ({ ...prev, supportWhatsapp: event.target.value }))} placeholder="972..." />
           </label>
         </div>
       );
@@ -490,13 +496,10 @@ export default function Page() {
 
     if (wizardStep === 2) {
       return (
-        <div className="wizard-form-grid">
+        <div className="form-grid">
           <label>
             <span>מודל OpenAI</span>
-            <select
-              value={settings.openaiModel}
-              onChange={(event) => setSettings((prev) => ({ ...prev, openaiModel: event.target.value }))}
-            >
+            <select value={settings.openaiModel} onChange={(event) => setSettings((prev) => ({ ...prev, openaiModel: event.target.value }))}>
               {models.map((model) => (
                 <option key={model} value={model}>{model}</option>
               ))}
@@ -504,22 +507,11 @@ export default function Page() {
           </label>
           <label>
             <span>טמפרטורה ({Number(settings.openaiTemperature).toFixed(1)})</span>
-            <input
-              type="range"
-              min={0}
-              max={1}
-              step={0.1}
-              value={settings.openaiTemperature}
-              onChange={(event) => setSettings((prev) => ({ ...prev, openaiTemperature: Number(event.target.value) }))}
-            />
+            <input type="range" min={0} max={1} step={0.1} value={settings.openaiTemperature} onChange={(event) => setSettings((prev) => ({ ...prev, openaiTemperature: Number(event.target.value) }))} />
           </label>
           <label>
             <span>System Prompt</span>
-            <textarea
-              rows={6}
-              value={settings.systemPrompt}
-              onChange={(event) => setSettings((prev) => ({ ...prev, systemPrompt: event.target.value }))}
-            />
+            <textarea rows={8} value={settings.systemPrompt} onChange={(event) => setSettings((prev) => ({ ...prev, systemPrompt: event.target.value }))} placeholder="הנחיות לבוט בעברית" />
           </label>
         </div>
       );
@@ -527,149 +519,109 @@ export default function Page() {
 
     if (wizardStep === 3) {
       return (
-        <div className="wizard-form-grid two-col">
+        <div className="form-grid two-col">
           <label>
             <span>GHL API Key</span>
             <input
               type="password"
               value={settings.ghlApiKey}
-              placeholder={selectedLocation.ghlApiConfigured ? "קיים מפתח. הזן חדש לעדכון" : "הזן מפתח"}
               onChange={(event) => setSettings((prev) => ({ ...prev, ghlApiKey: event.target.value }))}
+              placeholder={selectedLocation?.ghlApiConfigured ? "קיים מפתח. הזן חדש לעדכון" : "הזן מפתח"}
             />
           </label>
           <label>
             <span>מצב Handoff</span>
-            <select
-              value={settings.handoffMode}
-              onChange={(event) => setSettings((prev) => ({ ...prev, handoffMode: event.target.value }))}
-            >
-              <option value="on_human_reply">עצירה אוטומטית כשנציג עונה</option>
+            <select value={settings.handoffMode} onChange={(event) => setSettings((prev) => ({ ...prev, handoffMode: event.target.value }))}>
+              <option value="on_human_reply">עצירה אוטומטית כשנציג מגיב</option>
               <option value="manual_only">עצירה ידנית בלבד</option>
             </select>
           </label>
           <label>
             <span>אימייל תמיכה</span>
-            <input
-              value={settings.supportEmail}
-              onChange={(event) => setSettings((prev) => ({ ...prev, supportEmail: event.target.value }))}
-            />
+            <input value={settings.supportEmail} onChange={(event) => setSettings((prev) => ({ ...prev, supportEmail: event.target.value }))} />
           </label>
-          <label>
-            <span>WhatsApp תמיכה</span>
-            <input
-              value={settings.supportWhatsapp}
-              onChange={(event) => setSettings((prev) => ({ ...prev, supportWhatsapp: event.target.value }))}
-            />
-          </label>
+          <div className="toggle-row">
+            <label><input type="checkbox" checked={settings.botEnabled} onChange={(e) => setSettings((prev) => ({ ...prev, botEnabled: e.target.checked }))} /> בוט פעיל</label>
+            <label><input type="checkbox" checked={settings.demoEnabled} onChange={(e) => setSettings((prev) => ({ ...prev, demoEnabled: e.target.checked }))} /> דמו פעיל</label>
+          </div>
         </div>
       );
     }
 
     if (wizardStep === 4) {
       return (
-        <div className="wizard-form-grid">
+        <div className="form-grid">
           <div className="integration-grid">
             <article className="integration-card">
               <span>OpenAI</span>
-              <strong className={integrations?.openai.connected ? "status-ok" : "status-bad"}>
-                {integrations?.openai.connected ? "מחובר" : "לא מחובר"}
-              </strong>
+              <strong className={integrations?.openai.connected ? "status-ok" : "status-bad"}>{integrations?.openai.connected ? "מחובר" : "לא מחובר"}</strong>
               <small>{integrations?.openai.detail || "חיבור תקין"}</small>
             </article>
             <article className="integration-card">
               <span>GHL</span>
-              <strong className={integrations?.ghl.connected ? "status-ok" : "status-bad"}>
-                {integrations?.ghl.connected ? "מחובר" : "לא מחובר"}
-              </strong>
+              <strong className={integrations?.ghl.connected ? "status-ok" : "status-bad"}>{integrations?.ghl.connected ? "מחובר" : "לא מחובר"}</strong>
               <small>{integrations?.ghl.detail || "חיבור תקין"}</small>
             </article>
-          </div>
-          <div className="toggle-line">
-            <label>
-              <input
-                type="checkbox"
-                checked={settings.botEnabled}
-                onChange={(event) => setSettings((prev) => ({ ...prev, botEnabled: event.target.checked }))}
-              />
-              בוט פעיל
-            </label>
-            <label>
-              <input
-                type="checkbox"
-                checked={settings.demoEnabled}
-                onChange={(event) => setSettings((prev) => ({ ...prev, demoEnabled: event.target.checked }))}
-              />
-              דמו פעיל
-            </label>
           </div>
           <div className="code-box">
             <div className="code-head">
               <strong>קוד הטמעה</strong>
-              <button type="button" className="btn-outline" onClick={() => copyToClipboard(selectedLocation.embedCode || "", "קוד הטמעה")}>העתק</button>
+              <button type="button" className="btn-outline" onClick={() => copyToClipboard(selectedLocation?.embedCode || "", "קוד הטמעה")}>העתק</button>
             </div>
-            <code>{selectedLocation.embedCode || "אין קוד הטמעה"}</code>
+            <code>{selectedLocation?.embedCode || "אין קוד הטמעה עדיין"}</code>
           </div>
         </div>
       );
     }
 
     return (
-      <div className="wizard-summary">
-        <h4>סיכום לפני פרסום</h4>
-        <ul>
-          <li>סוכנות: {settings.alias || selectedLocation.id}</li>
-          <li>בוט: {settings.botName}</li>
-          <li>מודל: {settings.openaiModel}</li>
-          <li>OpenAI: {integrations?.openai.connected ? "מחובר" : "לא מחובר"}</li>
-          <li>GHL: {integrations?.ghl.connected ? "מחובר" : "לא מחובר"}</li>
+      <div className="form-grid">
+        <p className="summary-hint">אישור סופי לפני פרסום. אפשר לחזור לאחור ולעדכן שדות.</p>
+        <ul className="summary-list">
+          {wizardSummary.map((item) => (
+            <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>
+          ))}
         </ul>
-        <p>לחץ על "שמור ופרסם" כדי להחיל את כל ההגדרות ולסיים את ה־Wizard.</p>
       </div>
     );
   };
 
   return (
-    <main className="product-shell">
-      <aside dir="rtl" className="left-rail">
-        <div className="brand-box">
-          <div>
-            <h1>Rushingbot OS</h1>
-            <p>מערכת ניהול בוטים לסוכנויות</p>
-          </div>
-          <button type="button" className="btn-soft" onClick={logout}>התנתקות</button>
+    <main className="cb-shell" dir="rtl">
+      <aside className="cb-nav-rail" aria-label="ניווט ראשי">
+        <div className="logo">RB</div>
+        {modules.map((item) => (
+          <button key={item.id} type="button" className={`rail-btn ${moduleId === item.id ? "active" : ""}`} onClick={() => setModuleId(item.id)} title={item.label}>
+            <span>{item.icon}</span>
+          </button>
+        ))}
+        <button type="button" className="rail-btn rail-logout" onClick={logout} title="התנתקות">↩</button>
+      </aside>
+
+      <aside className="cb-agency-panel">
+        <div className="agency-header">
+          <h2>Rushingbot OS</h2>
+          <p>ניהול סוכנויות ובוטים</p>
         </div>
 
-        <div className="module-list">
-          {modules.map((item) => (
-            <button
-              key={item.id}
-              type="button"
-              className={`module-btn ${moduleId === item.id ? "active" : ""}`}
-              onClick={() => setModuleId(item.id)}
-            >
-              <strong>{item.label}</strong>
-              <span>{item.hint}</span>
-            </button>
-          ))}
-        </div>
-
-        <form className="quick-create" onSubmit={addAgency}>
+        <form className="new-agency-card" onSubmit={addAgency}>
           <h3>סוכנות חדשה</h3>
           <input value={addLocationId} onChange={(e) => setAddLocationId(e.target.value)} placeholder="Location ID" required />
-          <input value={addAlias} onChange={(e) => setAddAlias(e.target.value)} placeholder="כינוי" />
-          <input type="password" value={addGhlApiKey} onChange={(e) => setAddGhlApiKey(e.target.value)} placeholder="GHL API Key" />
-          <button type="submit" className="btn-primary">צור</button>
+          <input value={addAlias} onChange={(e) => setAddAlias(e.target.value)} placeholder="כינוי סוכנות" />
+          <input type="password" value={addGhlApiKey} onChange={(e) => setAddGhlApiKey(e.target.value)} placeholder="GHL API Key (אופציונלי)" />
+          <button type="submit" className="btn-primary">הוספת סוכנות</button>
         </form>
 
-        <div className="agency-scroll">
+        <div className="agency-list-head">
+          <strong>רשימת סוכנויות</strong>
+          <button type="button" className="btn-soft" onClick={refreshAll}>רענון</button>
+        </div>
+
+        <div className="agency-list">
+          {locations.length === 0 ? <div className="empty-block">אין סוכנויות. הוסף Location ID חדש.</div> : null}
           {locations.map((location) => (
-            <button
-              key={location.id}
-              type="button"
-              className={`agency-item ${selectedLocationId === location.id ? "active" : ""}`}
-              onClick={() => setSelectedLocationId(location.id)}
-            >
-              <div className="agency-top">
+            <button key={location.id} type="button" className={`agency-item ${selectedLocationId === location.id ? "active" : ""}`} onClick={() => setSelectedLocationId(location.id)}>
+              <div className="agency-item-top">
                 <strong>{location.alias || location.id}</strong>
                 <span className={`mini-badge ${location.ghlApiConfigured ? "tone-open" : "tone-closed"}`}>
                   {location.ghlApiConfigured ? "GHL" : "No GHL"}
@@ -681,154 +633,179 @@ export default function Page() {
         </div>
       </aside>
 
-      <section dir="rtl" className="main-area">
-        <header className="top-head">
+      <section className="cb-main-panel">
+        <header className="main-hero">
           <div>
-            <h2>{selectedLocation?.alias || "בחר סוכנות"}</h2>
-            <p>{selectedLocation?.id || "ללא סוכנות פעילה"}</p>
+            <h1>{selectedLocation?.alias || "בחר סוכנות"}</h1>
+            <p>{selectedLocation?.id || "ניהול בוטים, שיחות נציגים והטמעה בפלטפורמה"}</p>
           </div>
-          <div className="head-tools">
+          <div className="hero-actions">
             <button type="button" className="btn-outline" onClick={refreshAll}>רענון</button>
-            <div className="summary-strip">
-              <article><strong>{summary?.locations || 0}</strong><span>סוכנויות</span></article>
-              <article><strong>{summary?.openConversations || 0}</strong><span>פתוחות</span></article>
-              <article><strong>{summary?.handoffConversations || 0}</strong><span>אצל נציג</span></article>
-              <article><strong>{summary?.last24hMessages || 0}</strong><span>24h</span></article>
-            </div>
+            <button type="button" className="btn-primary" onClick={() => setModuleId("wizard")}>פתיחת Wizard</button>
           </div>
         </header>
 
-        {notice ? <div className={`notice ${notice.kind}`}>{notice.text}</div> : null}
-        {loading ? <div className="notice info">טוען...</div> : null}
+        <section className="metric-row">
+          <article><strong>{summary?.locations || 0}</strong><span>סוכנויות</span></article>
+          <article><strong>{summary?.openConversations || 0}</strong><span>שיחות פתוחות</span></article>
+          <article><strong>{summary?.handoffConversations || 0}</strong><span>אצל נציג</span></article>
+          <article><strong>{summary?.closedConversations || 0}</strong><span>נסגרו</span></article>
+          <article><strong>{summary?.last24hMessages || 0}</strong><span>24 שעות</span></article>
+          <article><strong>{selectedLocationStats?.handoffConversations || 0}</strong><span>Handoff בלוקיישן</span></article>
+        </section>
 
-        {!selectedLocation ? (
-          <div className="empty-block">בחר סוכנות מהתפריט השמאלי כדי לעבוד עם המערכת.</div>
-        ) : null}
+        {notice ? <div className={`notice ${notice.kind}`}>{notice.text}</div> : null}
+        {loading ? <div className="notice info">טוען נתונים...</div> : null}
+        {!selectedLocation ? <div className="empty-block">יש לבחור סוכנות כדי להמשיך.</div> : null}
 
         {selectedLocation && moduleId === "dashboard" ? (
-          <div className="content-grid">
-            <section className="panel-card">
-              <h3>סטטוס מערכת</h3>
+          <section className="dashboard-grid">
+            <article className="panel-card panel-span-2">
+              <div className="panel-head">
+                <h3>חיבורים מרכזיים</h3>
+                <span className="mini-badge tone-open">Live</span>
+              </div>
               <div className="integration-grid">
                 <article className="integration-card">
                   <span>OpenAI</span>
-                  <strong className={integrations?.openai.connected ? "status-ok" : "status-bad"}>
-                    {integrations?.openai.connected ? "מחובר" : "לא מחובר"}
-                  </strong>
-                  <small>{integrations?.openai.detail || "גישה למודלים זמינה"}</small>
+                  <strong className={integrations?.openai.connected ? "status-ok" : "status-bad"}>{integrations?.openai.connected ? "מחובר" : "לא מחובר"}</strong>
+                  <small>{integrations?.openai.detail || "מודלים זמינים לבחירה"}</small>
                 </article>
                 <article className="integration-card">
                   <span>GHL</span>
-                  <strong className={integrations?.ghl.connected ? "status-ok" : "status-bad"}>
-                    {integrations?.ghl.connected ? "מחובר" : "לא מחובר"}
-                  </strong>
-                  <small>{integrations?.ghl.detail || "חיבור תקין"}</small>
+                  <strong className={integrations?.ghl.connected ? "status-ok" : "status-bad"}>{integrations?.ghl.connected ? "מחובר" : "לא מחובר"}</strong>
+                  <small>{integrations?.ghl.detail || "סנכרון לפי Location"}</small>
                 </article>
               </div>
-            </section>
+            </article>
 
-            <section className="panel-card">
-              <h3>שיחות אחרונות</h3>
-              <div className="conversation-stack">
-                {conversations.slice(0, 6).map((conv) => (
-                  <button key={conv.id} type="button" className="conversation-item" onClick={() => { setModuleId("inbox"); setSelectedConversationId(conv.id); }}>
-                    <div className="conversation-head">
-                      <strong>{conv.title || conv.id}</strong>
-                      <span className={`mini-badge ${getStatusTone(conv.status)}`}>{conv.status}</span>
-                    </div>
-                    <small>{conv.messages?.[0]?.text || "ללא הודעות"}</small>
+            <article className="panel-card">
+              <h3>פעולות מהירות</h3>
+              <div className="quick-stack">
+                <button type="button" className="btn-outline" onClick={() => setModuleId("inbox")}>מעבר לאינבוקס שיחות</button>
+                <button type="button" className="btn-outline" onClick={() => setModuleId("playground")}>בדיקת בוט בלייב</button>
+                <button type="button" className="btn-outline" onClick={() => setModuleId("widget")}>עיצוב Widget</button>
+              </div>
+            </article>
+
+            <article className="panel-card panel-span-3">
+              <div className="panel-head">
+                <h3>שיחות אחרונות</h3>
+                <button type="button" className="btn-soft" onClick={() => setModuleId("inbox")}>פתח Inbox</button>
+              </div>
+              <div className="conversation-table">
+                {conversations.slice(0, 8).map((conv) => (
+                  <button key={conv.id} type="button" className="conversation-row" onClick={() => { setModuleId("inbox"); setSelectedConversationId(conv.id); }}>
+                    <span className={`mini-badge ${getStatusTone(conv.status)}`}>{statusLabel(conv.status)}</span>
+                    <strong>{conv.title || conv.id}</strong>
+                    <small>{conv.messages?.[0]?.text || "ללא הודעה"}</small>
+                    <time>{formatDate(conv.updatedAt)}</time>
                   </button>
                 ))}
+                {conversations.length === 0 ? <div className="empty-block">אין שיחות להצגה עדיין.</div> : null}
               </div>
-            </section>
-          </div>
+            </article>
+          </section>
         ) : null}
 
         {selectedLocation && moduleId === "wizard" ? (
-          <div className="wizard-shell">
-            <aside className="wizard-side">
-              <h3>Bot Setup Wizard</h3>
-              <p>השלמת 5 שלבים והעלאה לפרודקשן.</p>
-              <div className="wizard-steps">
+          <section className="wizard-modal-shell">
+            <div className="wizard-modal">
+              <aside className="wizard-stepper">
+                <h3>Wizard הקמת בוט</h3>
+                <p>השלמת שלבים והעלאה לפרודקשן.</p>
                 {wizardSteps.map((step, index) => (
-                  <button
-                    key={step}
-                    type="button"
-                    className={`step-btn ${wizardStep === index + 1 ? "active" : ""}`}
-                    onClick={() => setWizardStep(index + 1)}
-                  >
+                  <button key={step} type="button" className={`wizard-step ${wizardStep === index + 1 ? "active" : ""}`} onClick={() => setWizardStep(index + 1)}>
                     <span>{index + 1}</span>
                     <strong>{step}</strong>
                   </button>
                 ))}
+              </aside>
+
+              <div className="wizard-content">
+                <header>
+                  <h3>{wizardSteps[wizardStep - 1]}</h3>
+                  <p>סוכנות: {selectedLocation.alias || selectedLocation.id}</p>
+                </header>
+                {renderWizardBody()}
+                <footer className="wizard-actions">
+                  <button type="button" className="btn-soft" disabled={wizardStep === 1} onClick={() => setWizardStep((value) => Math.max(1, value - 1))}>הקודם</button>
+                  <button type="button" className="btn-outline" onClick={() => setModuleId("dashboard")}>סגירה</button>
+                  {wizardStep < wizardSteps.length ? (
+                    <button type="button" className="btn-primary" onClick={() => setWizardStep((value) => Math.min(wizardSteps.length, value + 1))}>הבא</button>
+                  ) : (
+                    <button type="button" className="btn-primary" onClick={saveSettings}>שמור ופרסם</button>
+                  )}
+                </footer>
               </div>
-            </aside>
 
-            <section className="wizard-main">
-              <header>
-                <h3>{wizardSteps[wizardStep - 1]}</h3>
-                <p>סוכנות: {selectedLocation.alias || selectedLocation.id}</p>
-              </header>
-
-              {stepContent()}
-
-              <footer className="wizard-footer">
-                <button type="button" className="btn-soft" disabled={wizardStep === 1} onClick={() => setWizardStep((s) => Math.max(1, s - 1))}>הקודם</button>
-                {wizardStep < 5 ? (
-                  <button type="button" className="btn-primary" onClick={() => setWizardStep((s) => Math.min(5, s + 1))}>הבא</button>
-                ) : (
-                  <button type="button" className="btn-primary" onClick={saveSettings}>שמור ופרסם</button>
-                )}
-              </footer>
-            </section>
-          </div>
+              <aside className="wizard-summary-col">
+                <h4>Summary</h4>
+                <ul>
+                  {wizardSummary.map((item) => (
+                    <li key={item.label}><span>{item.label}</span><strong>{item.value}</strong></li>
+                  ))}
+                </ul>
+              </aside>
+            </div>
+          </section>
         ) : null}
 
         {selectedLocation && moduleId === "inbox" ? (
-          <div className="inbox-shell">
-            <aside className="inbox-list">
-              <div className="inbox-head">
+          <section className="inbox-layout">
+            <aside className="inbox-col-list">
+              <div className="inbox-toolbar">
                 <h3>Conversations</h3>
                 <button type="button" className="btn-soft" onClick={() => loadSelectedLocation(selectedLocation.id)}>רענון</button>
               </div>
 
-              <div className="filter-row">
+              <input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="חיפוש לפי שם או טקסט" />
+
+              <div className="chip-row">
                 {filters.map((item) => (
                   <button key={item.id} type="button" className={`chip ${filter === item.id ? "active" : ""}`} onClick={() => setFilter(item.id)}>{item.label}</button>
                 ))}
               </div>
 
-              <div className="conversation-stack">
-                {filteredConversations.length === 0 ? <div className="empty-block">אין שיחות לתצוגה</div> : null}
+              <div className="inbox-list-scroll">
                 {filteredConversations.map((conversation) => (
-                  <button
-                    key={conversation.id}
-                    type="button"
-                    className={`conversation-item ${selectedConversationId === conversation.id ? "active" : ""}`}
-                    onClick={() => setSelectedConversationId(conversation.id)}
-                  >
-                    <div className="conversation-head">
+                  <button key={conversation.id} type="button" className={`conversation-item ${selectedConversationId === conversation.id ? "active" : ""}`} onClick={() => setSelectedConversationId(conversation.id)}>
+                    <div className="conversation-item-head">
                       <strong>{conversation.title || conversation.id}</strong>
-                      <span className={`mini-badge ${getStatusTone(conversation.status)}`}>{conversation.status}</span>
+                      <span className={`mini-badge ${getStatusTone(conversation.status)}`}>{statusLabel(conversation.status)}</span>
                     </div>
                     <small>{conversation.channel || "web"} · {formatDate(conversation.updatedAt)}</small>
-                    <small>{conversation.messages?.[0]?.text || "ללא טקסט"}</small>
+                    <small>{conversation.messages?.[0]?.text || "ללא הודעה"}</small>
                   </button>
                 ))}
+                {filteredConversations.length === 0 ? <div className="empty-block">אין שיחות בתצוגה הנוכחית.</div> : null}
               </div>
             </aside>
 
-            <section className="inbox-thread">
-              <div className="thread-head">
+            <section className="inbox-col-thread">
+              <header className="thread-header">
                 <div>
                   <h3>{selectedConversation?.title || "בחר שיחה"}</h3>
                   <p>{selectedConversation?.id || ""}</p>
                 </div>
-                <button type="button" className="btn-outline" onClick={closeConversation} disabled={!selectedConversationId}>סגור שיחה</button>
-              </div>
+                <div className="thread-actions">
+                  {selectedConversation && selectedConversation.status !== "handoff" ? (
+                    <button type="button" className="btn-outline" onClick={() => setConversationStatus("handoff")}>תפוס שיחה</button>
+                  ) : null}
+                  {selectedConversation && selectedConversation.status === "handoff" ? (
+                    <button type="button" className="btn-outline" onClick={() => setConversationStatus("reopen")}>החזר לבוט</button>
+                  ) : null}
+                  {selectedConversation && selectedConversation.status !== "closed" ? (
+                    <button type="button" className="btn-soft" onClick={() => setConversationStatus("close")}>סגור פניה</button>
+                  ) : null}
+                  {selectedConversation && selectedConversation.status === "closed" ? (
+                    <button type="button" className="btn-soft" onClick={() => setConversationStatus("reopen")}>פתח מחדש</button>
+                  ) : null}
+                </div>
+              </header>
 
-              <div className="chat-surface">
-                {conversationMessages.length === 0 ? <div className="empty-block">אין הודעות עדיין</div> : null}
+              <div className="chat-feed">
+                {conversationMessages.length === 0 ? <div className="empty-block">אין הודעות עדיין.</div> : null}
                 {conversationMessages.map((message) => (
                   <article key={message.id} className={`bubble ${message.authorType === "human" ? "agent" : message.authorType === "bot" ? "bot" : "user"}`}>
                     <strong>{message.senderName || message.authorType}</strong>
@@ -839,31 +816,45 @@ export default function Page() {
               </div>
 
               <form className="composer" onSubmit={sendAgentReply}>
-                <input value={agentReply} onChange={(event) => setAgentReply(event.target.value)} placeholder="תגובת נציג" />
+                <input value={agentReply} onChange={(event) => setAgentReply(event.target.value)} placeholder="הודעת נציג" />
                 <button type="submit" className="btn-primary">שלח</button>
               </form>
             </section>
-          </div>
+
+            <aside className="inbox-col-info">
+              <h3>פרטי שיחה</h3>
+              {selectedConversation ? (
+                <ul className="info-list">
+                  <li><span>סטטוס</span><strong>{statusLabel(selectedConversation.status)}</strong></li>
+                  <li><span>ערוץ</span><strong>{selectedConversation.channel || "web"}</strong></li>
+                  <li><span>מקור</span><strong>{selectedConversation.source || "-"}</strong></li>
+                  <li><span>עודכן</span><strong>{formatDate(selectedConversation.updatedAt)}</strong></li>
+                </ul>
+              ) : (
+                <div className="empty-block">בחר שיחה להצגת פרטים.</div>
+              )}
+            </aside>
+          </section>
         ) : null}
 
         {selectedLocation && moduleId === "playground" ? (
-          <div className="content-grid two-col">
-            <section className="panel-card">
+          <section className="playground-grid">
+            <article className="panel-card">
               <div className="panel-head">
-                <h3>התנסות חיה</h3>
+                <h3>הדמיית בוט חיה</h3>
                 <button type="button" className="btn-soft" onClick={() => { setDemoConversationId(null); setDemoMessages([]); }}>שיחה חדשה</button>
               </div>
 
-              <div className="quick-actions">
+              <div className="quick-stack inline">
                 <button type="button" className="btn-outline" onClick={() => sendDemoMessage("יש לי תקלה בתשלום")}>תקלה בתשלום</button>
-                <button type="button" className="btn-outline" onClick={() => sendDemoMessage("תעביר אותי לנציג")}>העברה לנציג</button>
-                <button type="button" className="btn-outline" onClick={() => sendDemoMessage("איך יוצרים משתמש חדש?")}>שאלת תמיכה</button>
+                <button type="button" className="btn-outline" onClick={() => sendDemoMessage("תעבירו אותי לנציג")}>העברה לנציג</button>
+                <button type="button" className="btn-outline" onClick={() => sendDemoMessage("איך מחברים את המייל?")}>חיבור מייל</button>
               </div>
 
-              <div className="chat-surface">
-                {demoMessages.length === 0 ? <div className="empty-block">התחל לשלוח הודעה לבדיקה.</div> : null}
+              <div className="chat-feed demo">
+                {demoMessages.length === 0 ? <div className="empty-block">שלח הודעה כדי לבדוק תשובות אמיתיות מ-OpenAI.</div> : null}
                 {demoMessages.map((message) => (
-                  <article key={message.id} className={`bubble ${message.authorType === "bot" ? "bot" : "user"}`}>
+                  <article key={message.id} className={`bubble ${message.authorType === "bot" ? "bot" : message.authorType === "human" ? "agent" : "user"}`}>
                     <strong>{message.senderName || (message.authorType === "bot" ? settings.botName : "לקוח")}</strong>
                     <span>{message.text}</span>
                   </article>
@@ -871,50 +862,58 @@ export default function Page() {
               </div>
 
               <form className="composer" onSubmit={(event) => { event.preventDefault(); sendDemoMessage(); }}>
-                <input value={demoInput} onChange={(event) => setDemoInput(event.target.value)} placeholder="כתוב הודעה" />
+                <input value={demoInput} onChange={(event) => setDemoInput(event.target.value)} placeholder="כתוב כאן הודעה לבדיקה" />
                 <button type="submit" className="btn-primary">שלח</button>
               </form>
-            </section>
+            </article>
 
-            <section className="panel-card">
-              <h3>תצוגת Widget</h3>
-              <div className="widget-preview-frame">
+            <article className="panel-card">
+              <h3>תצוגת ווידג׳ט</h3>
+              <div className="mobile-preview">
                 <iframe title="Widget preview" srcDoc={widgetPreviewDoc} />
               </div>
-            </section>
-          </div>
+            </article>
+          </section>
         ) : null}
 
         {selectedLocation && moduleId === "widget" ? (
-          <div className="content-grid two-col">
-            <section className="panel-card">
+          <section className="widget-grid">
+            <article className="panel-card">
               <h3>Widget Studio</h3>
-              <p>גרסה חדשה עם ניווט Home / Tasks / Messages / Help.</p>
+              <p>עיצוב, מיתוג והטמעה לכל Location בצורה מבודדת.</p>
+
+              <div className="form-grid two-col">
+                <label>
+                  <span>שם בוט</span>
+                  <input value={settings.botName} onChange={(event) => setSettings((prev) => ({ ...prev, botName: event.target.value }))} />
+                </label>
+                <label>
+                  <span>צבע Theme</span>
+                  <input value={settings.themeColor} onChange={(event) => setSettings((prev) => ({ ...prev, themeColor: event.target.value }))} />
+                </label>
+              </div>
 
               <div className="code-box">
                 <div className="code-head">
                   <strong>Snippet להטמעה</strong>
                   <button type="button" className="btn-outline" onClick={() => copyToClipboard(selectedLocation.embedCode || "", "Snippet")}>העתק</button>
                 </div>
-                <code>{selectedLocation.embedCode || "אין קוד"}</code>
+                <code>{selectedLocation.embedCode || "אין קוד הטמעה"}</code>
               </div>
 
-              <ul className="feature-list">
-                <li>Home עם כרטיסי פעולה מהירים</li>
-                <li>Tasks עם checklist מובנה</li>
-                <li>Messages עם רשימת שיחות</li>
-                <li>Help עם חיפוש ותגיות נפוצות</li>
-                <li>Chat רציף עם תשובות AI אמיתיות</li>
-              </ul>
-            </section>
+              <div className="quick-stack inline">
+                <button type="button" className="btn-primary" onClick={saveSettings}>שמור עיצוב</button>
+                <button type="button" className="btn-outline" onClick={() => setModuleId("playground")}>בדיקה ב-Playground</button>
+              </div>
+            </article>
 
-            <section className="panel-card">
-              <h3>Live Preview</h3>
-              <div className="widget-preview-frame tall">
+            <article className="panel-card">
+              <h3>Live Widget</h3>
+              <div className="mobile-preview tall">
                 <iframe title="Widget studio preview" srcDoc={widgetPreviewDoc} />
               </div>
-            </section>
-          </div>
+            </article>
+          </section>
         ) : null}
       </section>
     </main>
