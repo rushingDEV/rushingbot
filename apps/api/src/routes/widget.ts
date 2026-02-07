@@ -8,6 +8,9 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     return reply.send(`(function(){
   var script = document.currentScript;
   var locationKey = script ? script.getAttribute('data-location-key') : null;
+  var customerNameAttr = script ? (script.getAttribute('data-customer-name') || '') : '';
+  var contactIdAttr = script ? (script.getAttribute('data-contact-id') || '') : '';
+  var channelAttr = script ? (script.getAttribute('data-channel') || 'web') : 'web';
   if (!locationKey) {
     console.warn('[Rushingbot] Missing data-location-key');
     return;
@@ -26,6 +29,9 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     loading: false,
     sending: false,
     botName: 'Rushingbot',
+    customerName: customerNameAttr,
+    contactId: contactIdAttr,
+    channel: channelAttr || 'web',
     alias: '',
     theme: '#2455ff',
     messages: [],
@@ -39,12 +45,12 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
   root.innerHTML = '' +
     '<style>' +
       '.rbx-root{position:fixed;bottom:18px;right:18px;z-index:2147483000;font-family:Heebo,Assistant,Arial,sans-serif;direction:rtl;color:#0f1f3d}' +
-      '.rbx-stack{display:grid;gap:10px;justify-items:end}' +
+      '.rbx-stack{position:relative;display:grid;gap:10px;justify-items:end}' +
       '.rbx-nudge{max-width:290px;border:1px solid #d9e3f5;border-radius:14px;background:#fff;box-shadow:0 16px 38px rgba(17,34,74,.18);padding:10px 12px;font-size:13px;color:#4e5e7d;opacity:0;transform:translateY(8px);pointer-events:none;transition:.25s ease}' +
       '.rbx-nudge.show{opacity:1;transform:translateY(0)}' +
       '.rbx-launch{position:relative;width:58px;height:58px;border:none;border-radius:999px;background:var(--rbx-theme,#2455ff);box-shadow:0 14px 34px rgba(13,27,52,.3);color:#fff;font-size:25px;cursor:pointer;display:grid;place-items:center}' +
       '.rbx-launch-badge{position:absolute;top:-4px;left:-2px;min-width:20px;height:20px;border-radius:999px;background:#ef4444;color:#fff;font-size:11px;display:none;place-items:center;padding:0 6px;border:2px solid #fff}' +
-      '.rbx-panel{width:396px;max-width:calc(100vw - 20px);height:760px;max-height:calc(100vh - 30px);border:1px solid #d6e0f4;border-radius:28px;background:#fff;box-shadow:0 28px 62px rgba(13,27,52,.25);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;opacity:0;transform:translateY(16px) scale(.98);pointer-events:none;transition:.26s ease}' +
+      '.rbx-panel{position:absolute;right:0;bottom:70px;width:396px;max-width:calc(100vw - 20px);height:760px;max-height:calc(100vh - 30px);border:1px solid #d6e0f4;border-radius:28px;background:#fff;box-shadow:0 28px 62px rgba(13,27,52,.25);display:grid;grid-template-rows:auto 1fr auto;overflow:hidden;opacity:0;transform:translateY(16px) scale(.98);pointer-events:none;transition:.26s ease}' +
       '.rbx-panel.open{opacity:1;transform:translateY(0) scale(1);pointer-events:auto}' +
       '.rbx-head{padding:16px 16px 14px;background:linear-gradient(180deg,var(--rbx-theme,#2455ff),#133370);color:#fff;display:grid;gap:10px}' +
       '.rbx-head-top{display:flex;align-items:center;justify-content:space-between}' +
@@ -91,7 +97,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
       '.rbx-nav-badge{position:absolute;top:7px;left:31%;min-width:16px;height:16px;border-radius:999px;background:#ef4444;color:#fff;font-size:10px;display:none;place-items:center;padding:0 4px}' +
       '.rbx-empty{border:1px dashed #c9d7f0;border-radius:12px;background:#f8fbff;color:#5d6d89;padding:12px;text-align:center}' +
       '.rbx-loading{display:grid;place-items:center;height:100%;color:#5f6d87}' +
-      '@media(max-width:640px){.rbx-root{bottom:8px;right:8px}.rbx-panel{width:calc(100vw - 16px);height:calc(100vh - 16px)}.rbx-head h3{font-size:23px}}' +
+      '@media(max-width:640px){.rbx-root{bottom:8px;right:8px}.rbx-panel{right:0;bottom:68px;width:calc(100vw - 16px);height:calc(100vh - 86px)}.rbx-head h3{font-size:23px}}' +
     '</style>' +
     '<div class="rbx-stack">' +
       '<div class="rbx-nudge" id="rbx-nudge">יש לנו עדכונים חדשים בשבילך</div>' +
@@ -230,7 +236,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
   function renderChat() {
     var bubbles = state.messages.map(function(item){
       var kind = item.authorType === 'bot' ? 'bot' : item.authorType === 'human' ? 'human' : 'user';
-      var who = item.authorType === 'bot' ? state.botName : item.authorType === 'human' ? 'Agent Console' : (item.senderName || 'Client');
+      var who = item.authorType === 'bot' ? state.botName : item.authorType === 'human' ? 'Agent Console' : (item.senderName || state.customerName || 'Client');
       return '<article class="rbx-bubble ' + kind + '"><strong>' + esc(who) + '</strong><span>' + esc(item.text || '') + '</span><small>' + nowText() + '</small></article>';
     }).join('');
 
@@ -307,7 +313,7 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
     if (!text || !state.locationId || state.sending) return;
     state.sending = true;
 
-    state.messages.push({ authorType: 'customer', text: text, senderName: 'Client' });
+    state.messages.push({ authorType: 'customer', text: text, senderName: state.customerName || 'Client' });
     render();
 
     try {
@@ -316,7 +322,10 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
         headers: { 'content-type': 'application/json' },
         body: JSON.stringify({
           conversationId: state.conversationId || undefined,
-          text: text
+          text: text,
+          senderName: state.customerName || undefined,
+          contactId: state.contactId || undefined,
+          channel: state.channel || 'web'
         })
       });
 
@@ -358,7 +367,10 @@ export async function registerWidgetRoutes(app: FastifyInstance) {
       state.alias = location.alias || '';
       state.theme = location.themeColor || state.theme;
 
-      if (title) title.textContent = 'שלום, איך אפשר לעזור?';
+      if (title) {
+        var cleanName = String(state.customerName || '').trim();
+        title.textContent = cleanName ? ('שלום ' + cleanName + ', איך אפשר לעזור?') : 'שלום, איך אפשר לעזור?';
+      }
       if (sub) sub.textContent = 'שירות לקוחות רציף בכל הערוצים';
       setTheme();
 

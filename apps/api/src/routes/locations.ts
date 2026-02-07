@@ -48,7 +48,10 @@ const updateSchema = z.object({
 
 const demoMessageSchema = z.object({
   conversationId: z.string().min(1).optional(),
-  text: z.string().min(1)
+  text: z.string().min(1),
+  senderName: z.string().min(1).optional(),
+  contactId: z.string().min(1).optional(),
+  channel: z.string().min(1).optional()
 });
 
 function maskApiKey(key?: string | null) {
@@ -180,16 +183,18 @@ export async function registerLocationRoutes(app: FastifyInstance) {
       existingConversation ??
       (await createDemoConversation({
         locationId,
-        title: `Demo ${location.alias ?? location.id}`
+        title: body.senderName ? `Demo ${body.senderName}` : `Demo ${location.alias ?? location.id}`,
+        contactId: body.contactId,
+        channel: body.channel || "web"
       }));
 
     await saveMessage({
       id: crypto.randomUUID(),
       conversationId: conversation.id,
       direction: "inbound",
-      channel: "web",
+      channel: body.channel || "web",
       authorType: "customer",
-      senderName: "Client",
+      senderName: body.senderName || "Client",
       text: body.text,
       meta: { source: "playground" }
     });
@@ -214,7 +219,7 @@ export async function registerLocationRoutes(app: FastifyInstance) {
         id: crypto.randomUUID(),
         conversationId: conversation.id,
         direction: "outbound",
-        channel: "web",
+        channel: body.channel || "web",
         authorType: "bot",
         senderName: location.botName,
         text: botReply,

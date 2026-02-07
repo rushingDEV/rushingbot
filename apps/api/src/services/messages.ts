@@ -149,14 +149,17 @@ export async function handoffConversation(conversationId: string) {
 export async function createDemoConversation(params: {
   locationId: string;
   title: string;
+  contactId?: string;
+  channel?: string;
 }) {
   return prisma.conversation.create({
     data: {
       id: crypto.randomUUID(),
       locationId: params.locationId,
       title: params.title,
+      contactId: params.contactId ?? null,
       status: "open",
-      channel: "web",
+      channel: params.channel ?? "web",
       source: "playground",
       isDemo: true,
       lastMessageAt: new Date()
